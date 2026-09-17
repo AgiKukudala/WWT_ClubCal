@@ -1,0 +1,46 @@
+{
+  "name": "@clubcal/server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../.env src/main.ts",
+    "worker:dev": "tsx watch --env-file-if-exists=../.env src/worker.ts",
+    "build": "node build.mjs",
+    "start": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "migrate": "tsx --env-file-if-exists=../.env src/cli/migrate.ts",
+    "seed": "tsx --env-file-if-exists=../.env src/cli/seed.ts",
+    "user:create": "tsx --env-file-if-exists=../.env src/cli/create-user.ts",
+    "admin:reset-password": "tsx --env-file-if-exists=../.env src/cli/reset-password.ts",
+    "bench": "tsx --env-file-if-exists=../.env src/cli/bench.ts"
+  },
+  "dependencies": {
+    "@clubcal/shared": "*",
+    "argon2": "^0.44.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "kysely": "^0.28.0",
+    "luxon": "^3.7.0",
+    "nodemailer": "^7.0.0",
+    "pg": "^8.16.0",
+    "pg-boss": "^12.0.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.9",
+    "@types/express": "^5.0.3",
+    "@types/luxon": "^3.7.1",
+    "@types/nodemailer": "^7.0.0",
+    "@types/pg": "^8.15.0",
+    "@types/supertest": "^6.0.3",
+    "esbuild": "^0.25.0",
+    "ical.js": "^2.2.0",
+    "supertest": "^7.1.0",
+    "tsx": "^4.20.0",
+    "vitest": "^4.0.0"
+  }
+}

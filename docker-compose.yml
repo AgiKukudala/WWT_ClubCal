@@ -1,0 +1,94 @@
+# Local, self-contained ClubCal stack. No external accounts or API keys.
+# Overrides use COMPOSE_* variable names so a local-development .env (SMTP_HOST=localhost, …)
+# does not leak into the containers. See README "Configuration".
+#   docker compose up -d --build
+#   docker compose run --rm migrate node dist/seed.js     # optional synthetic demo data
+name: clubcal
+
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL: postgres://clubcal:${POSTGRES_PASSWORD:-clubcal-local-only}@db:5432/clubcal
+  SESSION_SECRET: ${SESSION_SECRET:-local-compose-secret-change-me-before-sharing}
+  # Plain HTTP on localhost, so cookies cannot be Secure here. Use HTTPS + COOKIE_SECURE=true when deploying.
+  COOKIE_SECURE: ${COMPOSE_COOKIE_SECURE:-false}
+  APP_ORIGIN: ${COMPOSE_APP_ORIGIN:-http://localhost:3000}
+  PUBLIC_URL: ${COMPOSE_PUBLIC_URL:-http://localhost:3000}
+  # Mailpit captures all mail locally; nothing is delivered to real inboxes.
+  SMTP_HOST: ${COMPOSE_SMTP_HOST:-mailpit}
+  SMTP_PORT: ${COMPOSE_SMTP_PORT:-1025}
+  SMTP_USER: ${COMPOSE_SMTP_USER:-}
+  SMTP_PASSWORD: ${COMPOSE_SMTP_PASSWORD:-}
+  SMTP_SECURE: ${COMPOSE_SMTP_SECURE:-false}
+  MAIL_FROM: ${COMPOSE_MAIL_FROM:-ClubCal <no-reply@clubcal.local>}
+  REMINDER_POLL_SECONDS: ${COMPOSE_REMINDER_POLL_SECONDS:-15}
+  LOG_LEVEL: ${COMPOSE_LOG_LEVEL:-info}
+  TRUST_PROXY: ${COMPOSE_TRUST_PROXY:-false}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: clubcal
+      POSTGRES_USER: clubcal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clubcal-local-only}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clubcal -d clubcal"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    image: clubcal:local
+    command: ["node", "dist/migrate.js"]
+    environment:
+      <<: *app-env
+      # The seed command refuses NODE_ENV=production; this one-off container is for local use.
+      NODE_ENV: development
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    image: clubcal:local
+    environment: *app-env
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    image: clubcal:local
+    command: ["node", "dist/worker.js"]
+    environment:
+      <<: *app-env
+      HEARTBEAT_FILE: /tmp/worker-heartbeat
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # Healthy while the dispatch loop has completed a database round-trip in the last 2 minutes.
+      test: ["CMD", "node", "-e", "const f=require('fs');process.exit(Date.now()-Number(f.readFileSync('/tmp/worker-heartbeat','utf8'))<120000?0:1)"]
+      interval: 30s
+      start_period: 30s
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "${MAILPIT_PORT:-8025}:8025"
+    volumes:
+      - mailpitdata:/data
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  mailpitdata:
